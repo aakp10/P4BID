@@ -47,6 +47,7 @@ class TypeMap final : public ProgramMap {
 
     // Map each node to its canonical type
     ordered_map<const IR::Node*, const IR::Type*> typeMap;
+    //ordered_map<const IR::Node*, const IR::Security_Label> securityMap;
     // All left-values in the program.
     ordered_set<const IR::Expression*> leftValues;
     // All compile-time constants.  A compile-time constant

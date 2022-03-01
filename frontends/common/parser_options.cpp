@@ -192,6 +192,14 @@ ParserOptions::ParserOptions() : Util::Options(defaultMessage) {
         },
         "Set the maximum number of errors to display before failing.");
     registerOption(
+        "--maxPC", "pc",
+        [](const char* arg) {
+            auto maxPC = strtoul(arg, nullptr, 10);
+            Log::setMaxPC(maxPC);
+            return true;
+        },
+        "Set the maximum number of errors to display before failing.");
+    registerOption(
         "-T", "loglevel",
         [](const char* arg) {
             Log::addDebugSpec(arg);
@@ -205,6 +213,13 @@ ParserOptions::ParserOptions() : Util::Options(defaultMessage) {
             return true;
         },
         "[Compiler debugging] Increase verbosity level (can be repeated)");
+    registerOption(
+        "--ifc-stats", nullptr,
+        [](const char* ) {
+            Log::enableIFCStats();
+            return true;
+        },
+        "Enable IFC statistics");
     registerOption(
         "--top4", "pass1[,pass2]",
         [this](const char* arg) {

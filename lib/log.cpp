@@ -41,6 +41,8 @@ namespace Detail {
 
 int verbosity = 0;
 int maximumLogLevel = 0;
+bool ifcStats = false;
+int maxPC = 0;
 
 // The time at which logging was initialized; used so that log messages can have
 // relative rather than absolute timestamps.
@@ -328,6 +330,14 @@ void increaseVerbosity() {
 
     Detail::verbosity++;
     Detail::invalidateCaches(Detail::verbosity - 1);
+}
+
+void enableIFCStats() {
+    Detail::ifcStats = true;
+}
+
+void setMaxPC(int maxPC_val) {
+    Detail::maxPC = maxPC_val;
 }
 
 }  // namespace Log

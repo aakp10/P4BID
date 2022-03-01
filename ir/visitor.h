@@ -34,6 +34,7 @@ struct Visitor_Context {
     mutable int                 child_index;
     mutable const char          *child_name;
     int                         depth;
+    int                         pc;
 };
 
 class Visitor {

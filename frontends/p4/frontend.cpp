@@ -225,7 +225,7 @@ const IR::P4Program *FrontEnd::run(const CompilerOptions &options, const IR::P4P
     if (options.excludeFrontendPasses) {
        passes.removePasses(options.passesToExcludeFrontend);
     }
-
+   
     passes.setName("FrontEnd");
     passes.setStopOnError(true);
     passes.addDebugHooks(hooks, true);

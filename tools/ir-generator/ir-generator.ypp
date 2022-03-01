@@ -75,7 +75,7 @@ static IrNamespace *current_namespace = LookupScope().resolve(0);
 }
 
 %token          ABSTRACT APPLY CLASS CONST DBLCOL DEFAULT DELETE INLINE INTERFACE NAMESPACE NEW
-                NULLOK OPERATOR OPTIONAL PRIVATE PROTECTED PUBLIC STATIC VIRTUAL
+                NULLOK OPERATOR OPTIONAL PRIVATE PROTECTED PUBLIC STATIC VIRTUAL MUTABLE
 %token<str>     BLOCK COMMENTBLOCK IDENTIFIER INTEGER NO STRING ZERO
 %token<emit>    EMITBLOCK
 
@@ -313,19 +313,22 @@ irField
           { $$ = new IrField(@4, $3, $4, $5, $1 | IrElement::Const);
             if ($1 & IrElement::Virtual)
                 yyerror("virtual invalid on field %s", $4); }
+    | modifiers MUTABLE nonRefType fieldName optInitializer ';'
+          { $$ = new IrField(@4, $3, $4, $5, $1 | IrElement::Mutable);}
     ;
 
 modifier
     : NULLOK    { $$ = IrElement::NullOK; }
     | INLINE    { $$ = IrElement::Inline; }
     | OPTIONAL  { $$ = IrElement::Optional; }
+    | MUTABLE   { $$ = IrElement::Mutable; }
     | STATIC    { $$ = IrElement::Static; }
     | VIRTUAL   { $$ = IrElement::Virtual; }
     ;
 
 modifiers : { $$ = 0; } | modifiers modifier { $$ = $1 | $2; }
 
-fieldName: IDENTIFIER | OPTIONAL { $$ = "optional"; } ;
+fieldName: IDENTIFIER | OPTIONAL { $$ = "optional"; }
 
 optInitializer
     : /* empty */       { $$ = nullptr; }

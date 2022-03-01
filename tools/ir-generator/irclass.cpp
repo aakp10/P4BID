@@ -474,7 +474,8 @@ void IrField::generate(std::ostream &out, bool asField) const {
     if (asField) {
         out << IrClass::indent;
         if (isStatic) out << "static ";
-        if (isConst) out << "const "; }
+        if (isConst) out << "const ";
+        if (isMutable) out << "mutable "; }
 
     auto tmpl = dynamic_cast<const TemplateInstantiation *>(type);
     const IrClass* cls = type->resolve(clss ? clss->containedIn : nullptr);

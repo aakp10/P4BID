@@ -109,6 +109,14 @@ using Parser = P4::P4Parser;
                   return makeToken(ACTIONS); }
 "apply"         { BEGIN(driver.saveState); driver.template_args = false;
                   return makeToken(APPLY); }
+"low"          { BEGIN(driver.saveState); driver.template_args = false;
+                  return makeToken(LOW); }
+"A_label"          { BEGIN(driver.saveState); driver.template_args = false;
+                  return makeToken(ISOLATED_1); }
+"B_label"          { BEGIN(driver.saveState); driver.template_args = false;
+                  return makeToken(ISOLATED_2); }
+"high"          { BEGIN(driver.saveState); driver.template_args = false;
+                  return makeToken(HIGH); }
 "bool"          { BEGIN(driver.saveState); driver.template_args = false;
                   return makeToken(BOOL); }
 "bit"           { BEGIN(driver.saveState); driver.template_args = true;

@@ -72,7 +72,7 @@ class ErrorReporter {
     ErrorReporter()
         : errorCount(0),
           warningCount(0),
-          maxErrorCount(20),
+          maxErrorCount(100),
           defaultWarningDiagnosticAction(DiagnosticAction::Warn)
     { outputstream = &std::cerr; }
 

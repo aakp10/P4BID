@@ -151,12 +151,11 @@ bool TypeMap::equivalent(const IR::Type* left, const IR::Type* right) {
         return right == nullptr;
     if (right == nullptr)
         return false;
-    if (left->node_type_name() != right->node_type_name())
+    if (!left->is<IR::Type_Base>() && left->node_type_name() != right->node_type_name())
         return false;
-
     // Below we are sure that it's the same Node class
     if (left->is<IR::Type_Base>() || left->is<IR::Type_Newtype>())
-        return *left == *right;
+        return left->toString() == right->toString();
     if (auto tt = left->to<IR::Type_Type>())
         return equivalent(tt->type, right->to<IR::Type_Type>()->type);
     if (left->is<IR::Type_Error>())

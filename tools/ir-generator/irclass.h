@@ -71,7 +71,7 @@ class IrElement  : public Util::IHasSourceInfo {
     virtual void generate_impl(std::ostream &out) const = 0;
 
     enum access_t { Public, Protected, Private } access = Public;
-    enum modifier_t { NullOK = 1, Optional = 2, Inline = 4, Virtual = 8, Static = 16, Const = 32 };
+    enum modifier_t { NullOK = 1, Optional = 2, Inline = 4, Virtual = 8, Static = 16, Const = 32, Mutable = 64 };
     static inline const char *modifier(int m) {
         if (m & IrElement::NullOK) return "NullOK";
         if (m & IrElement::Optional) return "optional";
@@ -79,6 +79,7 @@ class IrElement  : public Util::IHasSourceInfo {
         if (m & IrElement::Static) return "static";
         if (m & IrElement::Inline) return "inline";
         if (m & IrElement::Const) return "const";
+        if (m & IrElement::Mutable) return "mutable";
         return ""; }
 };
 inline std::ostream &operator<<(std::ostream &out, IrElement::access_t a) {
@@ -124,13 +125,14 @@ class IrField : public IrElement {
     const bool isInline = false;
     const bool isStatic = false;
     const bool isConst = false;
+    const bool isMutable = false;
 
     static IrField* srcInfoField();
 
     IrField(Util::SourceInfo info, const Type *type, cstring name, cstring init, int flags = 0)
     : IrElement(info), type(type), name(name), initializer(init), nullOK(flags & NullOK),
       optional(flags & Optional), isInline(flags & Inline), isStatic(flags & Static),
-      isConst(flags & Const) {}
+      isConst(flags & Const), isMutable (flags & Mutable) {}
     IrField(const Type *type, cstring name, cstring init = cstring(), int flags = 0)
     : IrField(Util::SourceInfo(), type, name, init, flags) {}
     IrField(const Type *type, cstring name, int flags)

@@ -73,6 +73,7 @@ const Type_Bits* Type_Bits::get(int width, bool isSigned) {
     return result;
 }
 
+
 const Type::Unknown *Type::Unknown::get() {
     static const Type::Unknown *singleton = nullptr;
     if (!singleton)
@@ -94,6 +95,7 @@ const Type_String *Type_String::get() {
     return singleton;
 }
 
+
 const Type::Bits *Type::Bits::get(Util::SourceInfo si, int sz, bool isSigned) {
     if (sz < 0)
         ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be negative", si);
@@ -101,6 +103,7 @@ const Type::Bits *Type::Bits::get(Util::SourceInfo si, int sz, bool isSigned) {
         ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be zero", si);
     return get(sz, isSigned);
 }
+
 
 const Type::Varbits *Type::Varbits::get(Util::SourceInfo si, int sz) {
     if (sz < 0)
@@ -197,6 +200,156 @@ const Type* Type_SpecializedCanonical::getP4Type() const {
     auto st = baseType->to<IR::Type_StructLike>();
     BUG_CHECK(st != nullptr, "%1%: expected a struct", baseType);
     return new IR::Type_Specialized(srcInfo, new IR::Type_Name(st->getName()), args);
+}
+
+const IR::Sec_Type_Bits_LOW* IR::Sec_Type_Bits_LOW::get(int width, bool isSigned) {
+    // map (width, signed) to type
+    using bit_type_key = std::pair<int, bool>;
+    static std::map<bit_type_key, const IR::Sec_Type_Bits_LOW*> *type_map = nullptr;
+    if (type_map == nullptr)
+        type_map = new std::map<bit_type_key, const IR::Sec_Type_Bits_LOW*>();
+    auto &result = (*type_map)[std::make_pair(width, isSigned)];
+    if (!result)
+        result = new IR::Sec_Type_Bits_LOW(width, isSigned);
+    if (width > P4CContext::getConfig().maximumWidthSupported())
+        ::error(ErrorType::ERR_UNSUPPORTED, "%1%: Compiler only supports widths up to %2%",
+                result, P4CContext::getConfig().maximumWidthSupported());
+    return result;
+}
+
+const IR::Sec_Type_Boolean_LOW *IR::Sec_Type_Boolean_LOW::get() {
+     static const IR::Sec_Type_Boolean_LOW *singleton = nullptr;
+     if (!singleton)
+         singleton = (new IR::Sec_Type_Boolean_LOW());
+     return singleton;
+}
+
+const IR::Sec_Type_String_LOW *IR::Sec_Type_String_LOW::get() {
+    static const Sec_Type_String_LOW *singleton = nullptr;
+    if (!singleton)
+        singleton = (new IR::Sec_Type_String_LOW());
+    return singleton;
+}
+
+const IR::Sec_Type_Bits_LOW *IR::Sec_Type_Bits_LOW::get(Util::SourceInfo si, int sz, bool isSigned) {
+    if (sz < 0)
+        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be negative", si);
+    if (sz == 0 && isSigned)
+        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be zero", si);
+    return get(sz, isSigned);
+}
+
+const IR::Sec_Type_Bits_HIGH* IR::Sec_Type_Bits_HIGH::get(int width, bool isSigned) {
+    // map (width, signed) to type
+    using bit_type_key = std::pair<int, bool>;
+    static std::map<bit_type_key, const IR::Sec_Type_Bits_HIGH*> *type_map = nullptr;
+    if (type_map == nullptr)
+        type_map = new std::map<bit_type_key, const IR::Sec_Type_Bits_HIGH*>();
+    auto &result = (*type_map)[std::make_pair(width, isSigned)];
+    if (!result)
+        result = new IR::Sec_Type_Bits_HIGH(width, isSigned);
+    if (width > P4CContext::getConfig().maximumWidthSupported())
+        ::error(ErrorType::ERR_UNSUPPORTED, "%1%: Compiler only supports widths up to %2%",
+                result, P4CContext::getConfig().maximumWidthSupported());
+    result->secLabel = 1;
+    return result;
+}
+
+const IR::Sec_Type_Boolean_HIGH *IR::Sec_Type_Boolean_HIGH::get() {
+     static const IR::Sec_Type_Boolean_HIGH *singleton = nullptr;
+     if (!singleton)
+         singleton = (new IR::Sec_Type_Boolean_HIGH());
+     return singleton;
+}
+
+const IR::Sec_Type_String_HIGH *IR::Sec_Type_String_HIGH::get() {
+    static const Sec_Type_String_HIGH *singleton = nullptr;
+    if (!singleton)
+        singleton = (new IR::Sec_Type_String_HIGH());
+    return singleton;
+}
+
+const IR::Sec_Type_Bits_HIGH *IR::Sec_Type_Bits_HIGH::get(Util::SourceInfo si, int sz, bool isSigned) {
+    if (sz < 0)
+        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be negative", si);
+    if (sz == 0 && isSigned)
+        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be zero", si);
+    auto result = get(sz, isSigned);
+    result->secLabel = 1;
+    return result;
+}
+
+const IR::Sec_Type_Bits_ISOLATED_1* IR::Sec_Type_Bits_ISOLATED_1::get(int width, bool isSigned) {
+    // map (width, signed) to type
+    using bit_type_key = std::pair<int, bool>;
+    static std::map<bit_type_key, const IR::Sec_Type_Bits_ISOLATED_1*> *type_map = nullptr;
+    if (type_map == nullptr)
+        type_map = new std::map<bit_type_key, const IR::Sec_Type_Bits_ISOLATED_1*>();
+    auto &result = (*type_map)[std::make_pair(width, isSigned)];
+    if (!result)
+        result = new IR::Sec_Type_Bits_ISOLATED_1(width, isSigned);
+    if (width > P4CContext::getConfig().maximumWidthSupported())
+        ::error(ErrorType::ERR_UNSUPPORTED, "%1%: Compiler only supports widths up to %2%",
+                result, P4CContext::getConfig().maximumWidthSupported());
+    return result;
+}
+
+const IR::Sec_Type_Boolean_ISOLATED_1 *IR::Sec_Type_Boolean_ISOLATED_1::get() {
+     static const IR::Sec_Type_Boolean_ISOLATED_1 *singleton = nullptr;
+     if (!singleton)
+         singleton = (new IR::Sec_Type_Boolean_ISOLATED_1());
+     return singleton;
+}
+
+const IR::Sec_Type_String_ISOLATED_1 *IR::Sec_Type_String_ISOLATED_1::get() {
+    static const Sec_Type_String_ISOLATED_1 *singleton = nullptr;
+    if (!singleton)
+        singleton = (new IR::Sec_Type_String_ISOLATED_1());
+    return singleton;
+}
+
+const IR::Sec_Type_Bits_ISOLATED_1 *IR::Sec_Type_Bits_ISOLATED_1::get(Util::SourceInfo si, int sz, bool isSigned) {
+    if (sz < 0)
+        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be negative", si);
+    if (sz == 0 && isSigned)
+        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be zero", si);
+    return get(sz, isSigned);
+}
+const IR::Sec_Type_Bits_ISOLATED_2* IR::Sec_Type_Bits_ISOLATED_2::get(int width, bool isSigned) {
+    // map (width, signed) to type
+    using bit_type_key = std::pair<int, bool>;
+    static std::map<bit_type_key, const IR::Sec_Type_Bits_ISOLATED_2*> *type_map = nullptr;
+    if (type_map == nullptr)
+        type_map = new std::map<bit_type_key, const IR::Sec_Type_Bits_ISOLATED_2*>();
+    auto &result = (*type_map)[std::make_pair(width, isSigned)];
+    if (!result)
+        result = new IR::Sec_Type_Bits_ISOLATED_2(width, isSigned);
+    if (width > P4CContext::getConfig().maximumWidthSupported())
+        ::error(ErrorType::ERR_UNSUPPORTED, "%1%: Compiler only supports widths up to %2%",
+                result, P4CContext::getConfig().maximumWidthSupported());
+    return result;
+}
+
+const IR::Sec_Type_Boolean_ISOLATED_2 *IR::Sec_Type_Boolean_ISOLATED_2::get() {
+     static const IR::Sec_Type_Boolean_ISOLATED_2 *singleton = nullptr;
+     if (!singleton)
+         singleton = (new IR::Sec_Type_Boolean_ISOLATED_2());
+     return singleton;
+}
+
+const IR::Sec_Type_String_ISOLATED_2 *IR::Sec_Type_String_ISOLATED_2::get() {
+    static const Sec_Type_String_ISOLATED_2 *singleton = nullptr;
+    if (!singleton)
+        singleton = (new IR::Sec_Type_String_ISOLATED_2());
+    return singleton;
+}
+
+const IR::Sec_Type_Bits_ISOLATED_2 *IR::Sec_Type_Bits_ISOLATED_2::get(Util::SourceInfo si, int sz, bool isSigned) {
+    if (sz < 0)
+        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be negative", si);
+    if (sz == 0 && isSigned)
+        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be zero", si);
+    return get(sz, isSigned);
 }
 
 }  // namespace IR

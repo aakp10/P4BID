@@ -82,6 +82,7 @@ class Type_Boolean : Type_Base {
     int width_bits() const override { return 1; }
     toString{ return "bool"; }
     dbprint { out << "bool"; }
+    int hasLabel() const override { return -1;}
 }
 
 /// The type of a parser state
@@ -89,6 +90,7 @@ class Type_State : Type_Base {
     static Type_State get();
     toString{ return "state"; }
     dbprint { out << "state"; }
+    int hasLabel() const override { return -1;}
 }
 
 /// Represents both bit<> and int<> types in P4-14 and P4-16
@@ -103,7 +105,9 @@ class Type_Bits : Type_Base {
 
     toString{ return baseName() + "<" + Util::toString(size) + ">"; }
     dbprint { out << toString(); }
+    int hasLabel() const override { return -1;}
 }
+
 
 class Type_Varbits : Type_Base {
     optional int         size = 0;   // if zero it means "unknown"
@@ -112,6 +116,7 @@ class Type_Varbits : Type_Base {
     static Type_Varbits get();
     toString{ return cstring("varbit<") + Util::toString(size) + ">"; }
     dbprint { out << "varbit<" << size << ">"; }
+    int hasLabel() const override { return -1;}
 }
 
 class Parameter : Declaration, IAnnotated {
@@ -195,18 +200,21 @@ class Type_Dontcare : Type_Base {
     toString{ return "_"; }
     static Type_Dontcare get();
     dbprint { out << "_"; }
+    int hasLabel() const override { return -1;}
 }
 
 class Type_Void : Type_Base {
     toString{ return "void"; }
     static Type_Void get();
     dbprint { out << "void"; }
+    int hasLabel() const override { return -1;}
 }
 
 class Type_MatchKind : Type_Base {
     toString{ return "match_kind"; }
     static Type_MatchKind get();
     dbprint { out << "match_kind"; }
+    int hasLabel() const override { return -1;}
 }
 
 class TypeParameters : ISimpleNamespace {
@@ -498,7 +506,9 @@ class Type_String : Type_Base {
 #nodbprint
     static Type_String get();
     toString{ return "string"; }
+    int hasLabel() const override { return -1;}
 }
+
 
 class Type_Enum : Type_Declaration, ISimpleNamespace, IAnnotated {
     optional Annotations annotations = Annotations::empty;
@@ -677,4 +687,123 @@ class Type_Extern : Type_Declaration, INestedNamespace, IGeneralNamespace,
     { return lookupMethod(name, arguments); }
 }
 
+class Sec_Type_Boolean_LOW : Type_Boolean {
+    int width_bits() const override { return 1; }
+    toString{ return "bool"; }
+    dbprint { out << "bool"; }
+    static Sec_Type_Boolean_LOW get();
+}
+
+class Sec_Type_Bits_LOW : Type_Bits {
+    static Sec_Type_Bits_LOW get(Util::SourceInfo si, int sz, bool isSigned = false);
+    static Sec_Type_Bits_LOW get(int sz, bool isSigned = false);
+    cstring baseName() const { return isSigned ? "int" : "bit"; }
+    int width_bits() const override { return size; }
+
+    toString{ return baseName() + "<" + Util::toString(size) + ">"; }
+    dbprint { out << toString(); }
+}
+
+class Sec_Type_Varbits_LOW : Type_Varbits {
+    static Sec_Type_Varbits_LOW get(Util::SourceInfo si, int size = 0);
+    static Sec_Type_Varbits_LOW get();
+    toString{ return cstring("varbit<") + Util::toString(size) + ">"; }
+    dbprint { out << "varbit<" << size << ">"; }
+}
+
+class Sec_Type_String_LOW : Type_String {
+#nodbprint
+    static Sec_Type_String_LOW get();
+    toString{ return "string"; }
+}
+
+class Sec_Type_Boolean_HIGH : Type_Boolean {
+    int width_bits() const override { return 1; }
+    toString{ return "bool"; }
+    dbprint { out << "bool"; }
+    static Sec_Type_Boolean_HIGH get();
+}
+
+class Sec_Type_Bits_HIGH : Type_Bits {
+    static Sec_Type_Bits_HIGH get(Util::SourceInfo si, int sz, bool isSigned = false);
+    static Sec_Type_Bits_HIGH get(int sz, bool isSigned = false);
+    cstring baseName() const { return isSigned ? "int" : "bit"; }
+    int width_bits() const override { return size; }
+    toString{ return baseName() + "<" + Util::toString(size) + ">"; }
+    dbprint { out << toString(); }
+}
+
+class Sec_Type_Varbits_HIGH : Type_Varbits {
+    static Sec_Type_Varbits_HIGH get(Util::SourceInfo si, int size = 0);
+    static Sec_Type_Varbits_HIGH get();
+    toString{ return cstring("varbit<") + Util::toString(size) + ">"; }
+    dbprint { out << "varbit<" << size << ">"; }
+}
+
+class Sec_Type_String_HIGH : Type_String {
+#nodbprint
+    static Sec_Type_String_HIGH get();
+    toString{ return "string"; }
+}
+
+
+class Sec_Type_Boolean_ISOLATED_1 : Type_Boolean {
+    int width_bits() const override { return 1; }
+    toString{ return "bool"; }
+    dbprint { out << "bool"; }
+    static Sec_Type_Boolean_ISOLATED_1 get();
+}
+
+class Sec_Type_Bits_ISOLATED_1 : Type_Bits {
+    static Sec_Type_Bits_ISOLATED_1 get(Util::SourceInfo si, int sz, bool isSigned = false);
+    static Sec_Type_Bits_ISOLATED_1 get(int sz, bool isSigned = false);
+    cstring baseName() const { return isSigned ? "int" : "bit"; }
+    int width_bits() const override { return size; }
+
+    toString{ return baseName() + "<" + Util::toString(size) + ">"; }
+    dbprint { out << toString(); }
+}
+
+class Sec_Type_Varbits_ISOLATED_1 : Type_Varbits {
+    static Sec_Type_Varbits_ISOLATED_1 get(Util::SourceInfo si, int size = 0);
+    static Sec_Type_Varbits_ISOLATED_1 get();
+    toString{ return cstring("varbit<") + Util::toString(size) + ">"; }
+    dbprint { out << "varbit<" << size << ">"; }
+}
+
+class Sec_Type_String_ISOLATED_1 : Type_String {
+#nodbprint
+    static Sec_Type_String_ISOLATED_1 get();
+    toString{ return "string"; }
+}
+
+class Sec_Type_Boolean_ISOLATED_2 : Type_Boolean {
+    int width_bits() const override { return 1; }
+    toString{ return "bool"; }
+    dbprint { out << "bool"; }
+    static Sec_Type_Boolean_ISOLATED_2 get();
+}
+
+class Sec_Type_Bits_ISOLATED_2 : Type_Bits {
+    static Sec_Type_Bits_ISOLATED_2 get(Util::SourceInfo si, int sz, bool isSigned = false);
+    static Sec_Type_Bits_ISOLATED_2 get(int sz, bool isSigned = false);
+    cstring baseName() const { return isSigned ? "int" : "bit"; }
+    int width_bits() const override { return size; }
+
+    toString{ return baseName() + "<" + Util::toString(size) + ">"; }
+    dbprint { out << toString(); }
+}
+
+class Sec_Type_Varbits_ISOLATED_2 : Type_Varbits {
+    static Sec_Type_Varbits_ISOLATED_2 get(Util::SourceInfo si, int size = 0);
+    static Sec_Type_Varbits_ISOLATED_2 get();
+    toString{ return cstring("varbit<") + Util::toString(size) + ">"; }
+    dbprint { out << "varbit<" << size << ">"; }
+}
+
+class Sec_Type_String_ISOLATED_2 : Type_String {
+#nodbprint
+    static Sec_Type_String_ISOLATED_2 get();
+    toString{ return "string"; }
+}
 /** @} *//* end group irdefs */

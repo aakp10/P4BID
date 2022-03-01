@@ -174,7 +174,12 @@ class Declaration_MatchKind : ISimpleNamespace {
 }
 
 /// Table property value abstract base class
-abstract PropertyValue { }
+abstract PropertyValue { 
+    mutable int pc = 0; 
+    mutable int secLabel = Security_Label::HIGH;
+    void setPc(int label) const {secLabel = label; pc=label;}
+    int validContext() const {return pc;}
+}
 
 /// A table property whose value is an expression
 class ExpressionValue : PropertyValue {
@@ -413,12 +418,15 @@ class P4Program : IGeneralNamespace {
 
 ///////////////////////////// Statements //////////////////////////
 
-abstract Statement : StatOrDecl {}
+abstract Statement : StatOrDecl {
+    
+}
 
 class ExitStatement : Statement {
     toString{ return "exit"; }
     dbprint { out << "exit"; }
 }
+
 
 class ReturnStatement : Statement {
     NullOK Expression expression;
@@ -426,14 +434,19 @@ class ReturnStatement : Statement {
                 (expression != nullptr ? expression->toString() : cstring("")); }
 }
 
+
 class EmptyStatement : Statement {
     dbprint { out << ""; }
 }
+
+
 
 class AssignmentStatement : Statement {
     Expression left;
     Expression right;
 }
+
+
 
 class IfStatement : Statement {
     Expression       condition;
@@ -448,6 +461,7 @@ class IfStatement : Statement {
     }
 }
 
+
 class BlockStatement : Statement, ISimpleNamespace, IAnnotated {
     optional Annotations                        annotations = Annotations::empty;
     optional inline IndexedVector<StatOrDecl>   components;
@@ -458,6 +472,8 @@ class BlockStatement : Statement, ISimpleNamespace, IAnnotated {
     void push_back(StatOrDecl st) { components.push_back(st); }
     Annotations getAnnotations() const override { return annotations; }
 }
+
+
 
 class MethodCallStatement : Statement {
     MethodCallExpression methodCall;

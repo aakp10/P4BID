@@ -33,6 +33,8 @@ namespace Log {
 namespace Detail {
 // The global verbosity level.
 extern int verbosity;
+extern bool ifcStats;
+extern int maxPC;
 
 // A cache of the maximum log level requested for any file.
 extern int maximumLogLevel;
@@ -81,8 +83,11 @@ inline bool fileLogLevelIsAtLeast(const char* file, int level) {
 void addDebugSpec(const char* spec);
 
 inline bool verbose() { return Detail::verbosity > 0; }
+inline bool ifcStatsEnabled() {return Detail::ifcStats;}
 inline int verbosity() { return Detail::verbosity; }
 void increaseVerbosity();
+void enableIFCStats();
+void setMaxPC(int maxPC_val);
 
 }  // namespace Log
 
@@ -118,6 +123,8 @@ void increaseVerbosity();
 #define LOG7_UNINDENT   LOGN_UNINDENT(7)
 #define LOG8_UNINDENT   LOGN_UNINDENT(8)
 #define LOG9_UNINDENT   LOGN_UNINDENT(9)
+
+#define IFC_LOG(X) (Log::ifcStatsEnabled()?std::cout<<X<<"\n" : std::cout<<"")
 
 #define LOG_FEATURE(TAG, N, X) ((N) <= MAX_LOGGING_LEVEL && ::Log::fileLogLevelIsAtLeast(TAG, N) \
                       ? ::Log::Detail::fileLogOutput(TAG)                       \

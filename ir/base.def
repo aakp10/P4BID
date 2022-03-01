@@ -23,6 +23,17 @@ interface CompileTimeValue {
     }
 }
 
+#emit
+enum Security_Label {
+    LOW,
+    ISOLATED_BEGIN,
+    ISOLATED_1,
+    ISOLATED_2,
+    ISOLATED_END,
+    HIGH,
+    NUM_LABELS
+};
+#end
 /// Base class for P4 types
 abstract Type {
 #emit
@@ -38,6 +49,12 @@ abstract Type {
     /// When possible returns the corresponding type that can be inserted
     /// in a P4 program; may return a Type_Name
     virtual const Type* getP4Type() const = 0;
+    virtual int hasLabel() const { return -1;}
+    mutable int secLabel = 0;
+    mutable int pc = 5;
+    void setSecLabel(int label) const { secLabel = label; pc = 5;}
+    int getSecLabel() {return secLabel;}
+    int getPC() {return pc;}
 }
 
 /// Implemented by all types that may be generic:
@@ -121,7 +138,11 @@ class Type_Unknown : Type_Base {
 }
 
 /// A statement or a declaration
-abstract StatOrDecl {}
+abstract StatOrDecl {
+    mutable int pc = 0; 
+    void setPc(int label) const {pc = label;}
+    int validContext() const {return pc;}
+}
 
 /// Two declarations with the same name are not necessarily the same declaration.
 /// That's why declid is used to distinguish them.
@@ -155,6 +176,8 @@ abstract Type_Declaration : Type, IDeclaration {
 
 /// base class for expressions
 abstract Expression {
+        mutable int secLabel = 0;
+        mutable int pc = 0;
     /// Note that the type field is not visited.
     /// Most P4_16 passes don't use this field.
     /// It is a used to hold the result of TypeInferencing for the expression.
@@ -162,6 +185,8 @@ abstract Expression {
     /// It is not visited by the visitors by default (can be visited explicitly in preorder)
     optional Type type = Type::Unknown::get();
     visit_children { (void)v; }
+    void setLabel(int label) const {secLabel = label;}
+    void setPC(int label) const {pc = label;}
 #apply
 }
 

@@ -55,7 +55,7 @@ void __throw_bad_alloc() {
 }
 
 void __throw_bad_cast() {
-    throw backtrace_exception<bad_cast>();
+     throw backtrace_exception<bad_alloc>();
 }
 
 void __throw_bad_function_call() {

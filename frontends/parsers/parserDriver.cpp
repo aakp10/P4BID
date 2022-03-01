@@ -147,6 +147,7 @@ P4ParserDriver::parse(AbstractP4Lexer& lexer, const char* sourceFile,
     return true;
 }
 
+/*This one is invoked*/
 /* static */ const IR::P4Program*
 P4ParserDriver::parse(std::istream& in, const char* sourceFile,
                       unsigned sourceLine /* = 1 */) {

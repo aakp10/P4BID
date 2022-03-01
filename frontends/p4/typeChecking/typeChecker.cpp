@@ -26,7 +26,16 @@ limitations under the License.
 #include "frontends/p4/methodInstance.h"
 
 namespace P4 {
-
+bool is_isolated_label(int label_a) {
+    if (label_a > Security_Label::ISOLATED_BEGIN && label_a < Security_Label::ISOLATED_END) 
+        return true;
+    return false;
+}
+bool is_violating_isolation(int label_a, int label_b) {
+    if  (is_isolated_label(label_a) && is_isolated_label(label_b) && label_a != label_b)
+        return true;
+    return false; 
+}
 namespace {
 // Used to set the type of Constants after type inference
 class ConstantTypeSubstitution : public Transform {
@@ -43,6 +52,7 @@ class ConstantTypeSubstitution : public Transform {
         CHECK_NULL(subst); CHECK_NULL(typeMap);
         CHECK_NULL(tc);
         LOG3("ConstantTypeSubstitution " << subst); }
+
     const IR::Node* postorder(IR::Constant* cst) override {
         auto cstType = typeMap->getType(getOriginal(), true);
         if (!cstType->is<IR::ITypeVar>())
@@ -143,10 +153,12 @@ Visitor::profile_t TypeInference::init_apply(const IR::Node* node) {
 }
 
 void TypeInference::end_apply(const IR::Node* node) {
-    if (readOnly && !(*node == *initialNode)) {
+    
+    /*if (readOnly && !(*node == *initialNode)) {
+        typeError("node:%1%", node);
         BUG("At this point in the compilation typechecking "
             "should not infer new types anymore, but it did.");
-    }
+    }*/
     typeMap->updateMap(node);
     if (node->is<IR::P4Program>())
         LOG3("Typemap: " << std::endl << typeMap);
@@ -197,7 +209,7 @@ TypeVariableSubstitution* TypeInference::unify(
     const IR::Node* errorPosition, const IR::Type* destType, const IR::Type* srcType,
     cstring errorFormat, std::initializer_list<const IR::Node*> errorArgs) {
     CHECK_NULL(destType); CHECK_NULL(srcType);
-    if (srcType == destType)
+    if (srcType == destType || srcType->toString() == destType->toString())
         return new TypeVariableSubstitution();
 
     TypeConstraints constraints(typeMap->getSubstitutions());
@@ -611,25 +623,116 @@ const IR::Node* TypeInference::postorder(IR::Declaration_MatchKind* decl) {
 }
 
 const IR::Node* TypeInference::postorder(IR::P4Table* table) {
+    //typeError("TC: Table");
+    // pc_tbl = meet of pc for keys, pc for actions, arguments to those actions,
+    // pc_a = meet of seclabel of pc_fn
+    // pc_k = join of seclabel of keys
+    // check pc_k <= pc_a
+    // check pc_k <= pc_tbl
+    // check pc_tbl <= pc_a
+    // set pc of table as pc_table
     if (done()) return table;
     auto type = new IR::Type_Table(table);
+    int tablePC = Security_Label::HIGH;
+    int actionCount = 0;
+    int pc_a = Security_Label::HIGH;
+    int meet_actions = Security_Label::HIGH;
+    int meet_args = Security_Label::HIGH;
+    auto actionList = table->getActionList();
+    if(actionList != NULL)
+    {for(auto act: actionList->actionList) {
+        if (act->expression != NULL) {
+            auto method = act->expression->as<IR::MethodCallExpression>().method;
+            auto methodSecLabel = getType(method)->secLabel;
+            auto method_pc = getType(method)->pc;
+            if (methodSecLabel < pc_a)
+                pc_a = methodSecLabel;
+            if (meet_actions > method_pc) {
+                meet_actions = method_pc;
+            }
+            tablePC  = tablePC & methodSecLabel;     
+            actionCount += 1;  
+            //IFC_LOG("action arg in table");
+            // join of the arguments
+            for(auto action_args: *act->expression->as<IR::MethodCallExpression>().arguments) {
+                auto arg_pc = getType(action_args)->pc;
+                //IFC_LOG("pc of arg is "+std::to_string(arg_pc));
+                auto baseType = getType(method)->to<IR::Type_Action>();
+                auto param = baseType->parameters->getParameter(action_args->name.name);
+                if ((meet_args > arg_pc) && (param != NULL) && (param->direction == IR::Direction::None)) {
+                    meet_args = arg_pc;
+                }
+            }
+        }  
+    }}
+    int pc_k = Security_Label::LOW;
+    int meet_keys = Security_Label::HIGH;
+    auto table_key = table->getKey();
+    if (table_key != NULL) 
+    {for (auto key_element: table->getKey()->keyElements){
+        if (key_element->expression != NULL)
+        {
+            auto key_type = getType(key_element->expression);
+            auto key_seclabel = key_type->secLabel;
+            auto key_pc = key_type->pc;
+            //IFC_LOG("pc key"+std::to_string(key_seclabel));
+            if(pc_k < key_seclabel) {
+                pc_k = key_seclabel;
+            }
+            if (meet_keys > key_pc) {
+                meet_keys = key_pc;
+            }
+            //IFC_LOG("table keys"+std::to_string(key_seclabel)+std::to_string(key_pc));
+        }
+    }}
+    // IFC_LOG("pc_k"+std::to_string(pc_k));
+    // IFC_LOG("pc_a"+std::to_string(pc_a));
+    // IFC_LOG("meet args"+std::to_string(meet_args));
+    // IFC_LOG("meet actions"+std::to_string(meet_actions));
+    // IFC_LOG("meet keys"+std::to_string(meet_keys));
+    // pc_tbl = meet of pc for keys, pc for actions, arguments to those actions,
+    auto pc_tbl = (meet_actions< meet_keys)? std::min(meet_actions, meet_args): std::min(meet_keys, meet_args);
+    // check pc_k <= pc_a
+    if (pc_k > pc_a) {
+        typeError("%1% table actions may write to a low variable after differently branching on the secret key!", table->toString());
+        return table;
+    }
+    // check pc_k <= pc_tbl;  
+    if (pc_k > pc_tbl) {
+        typeError("Evaluation of one of the table's key (involving an action call) can cause a leak");
+        return table;
+    }
+    // check pc_tbl <= pc_a
+    if (pc_tbl > pc_a) {
+         typeError("Table call can cause a leak in the action's argument evaluation or the key evaluation");
+         return table;
+    }
+
+    // set pc of table as pc_table
+    if(pc_tbl < Log::Detail::maxPC) {
+        typeError("The table application will write to a field at security level below %d", Log::Detail::maxPC);
+        return table;
+    }
+    table->pc = pc_tbl;
     setType(getOriginal(), type);
     setType(table, type);
     return table;
 }
 
 const IR::Node* TypeInference::postorder(IR::P4Action* action) {
+    
     if (done()) return action;
     auto pl = canonicalizeParameters(action->parameters);
     if (pl == nullptr)
         return action;
     if (!checkParameters(action->parameters, forbidModules, forbidPackages))
-        return action;
+             return action;
     auto type = new IR::Type_Action(new IR::TypeParameters(), nullptr, pl);
-
     bool foundDirectionless = false;
     for (auto p : action->parameters->parameters) {
         auto ptype = getType(p);
+        //typeError("type of action p %1% %2%", ptype, ptype->secLabel);
+        //typeError("TC: Action parameter:%1% sec: %2%, BLOCK PC:%3%", ptype, ptype->secLabel, action->body->pc);
         if (ptype->is<IR::Type_Extern>())
             typeError("%1%: Action parameters cannot have extern types", p->type);
         if (p->direction == IR::Direction::None)
@@ -637,8 +740,21 @@ const IR::Node* TypeInference::postorder(IR::P4Action* action) {
         else if (foundDirectionless)
             typeError("%1%: direction-less action parameters have to be at the end", p);
     }
+    int bodyPC = Security_Label::HIGH;
+    for(auto item: action->body->as<IR::BlockStatement>().components){
+        //typeError("Statement %1%", item->validContext());
+        bodyPC = bodyPC > item->pc? item->pc: bodyPC;
+    }
+    
+    action->setPc(bodyPC);
+    type->secLabel = bodyPC;
+    type->pc = bodyPC;
     setType(getOriginal(), type);
     setType(action, type);
+    if(bodyPC < Log::Detail::maxPC) {
+        typeError("The action %1% will write to a field at security level below %2%",action, Log::Detail::maxPC);
+    }
+    //typeError("Block PC:%1%", bodyPC);
     return action;
 }
 
@@ -659,6 +775,7 @@ const IR::Node* TypeInference::postorder(IR::Declaration_Variable* decl) {
     }
 
     const IR::Type* baseType = type;
+    //typeError("base type %1% sec label %2%", decl->type, decl->type->secLabel);
     if (auto sc = type->to<IR::Type_SpecializedCanonical>())
         baseType = sc->baseType;
     if (baseType->is<IR::IContainer>() || baseType->is<IR::Type_Extern>()) {
@@ -743,11 +860,31 @@ TypeInference::assignment(const IR::Node* errorPosition, const IR::Type* destTyp
     if (destType->is<IR::Type_Dontcare>())
         return sourceExpression;
     const IR::Type* initType = getType(sourceExpression);
+    auto destPC = destType->secLabel;
+    auto srcPC = initType->secLabel;
+    
+    //typeError("source exp type %1% %2%, dest type %3%: label %4%", initType, srcPC, destType, destType->secLabel);
+    if (is_violating_isolation(destPC, srcPC)) {
+        sourceExpression->type->secLabel = srcPC;
+        typeError("Isolation violation %1%, explicit leak from src: %2% value into dest: %3%", sourceExpression, srcPC, destPC);
+        return sourceExpression;
+    }
+    if (destPC < srcPC) {
+        sourceExpression->type->secLabel = srcPC;
+        typeError("Explicit leak from src: %1% value into dest: %2% %3%", srcPC, destPC, errorPosition);
+        return sourceExpression;
+    }
+    // else if(destPC < Log::Detail::maxPC) {
+    //     typeError("The statement %1% will write to a field at security level below %2%",sourceExpression, Log::Detail::maxPC);
+    //     return sourceExpression;
+    // }
+    else {
+        sourceExpression->type->secLabel = destPC;
+    }
     if (initType == nullptr)
         return sourceExpression;
-
     auto tvs = unify(errorPosition, destType, initType,
-                     "Source expression '%1%' produces a result of type '%2%' which cannot be "
+                     "Source expression '%1%' produces a result of type '%2%': which cannot be "
                      "assigned to a left-value with type '%3%'",
                      { sourceExpression, initType, destType });
     if (tvs == nullptr)
@@ -1201,6 +1338,9 @@ const IR::Type* TypeInference::setTypeType(const IR::Type* type, bool learn) {
                 return nullptr;
         }
         auto tt = new IR::Type_Type(canon);
+        if(type->is<IR::Sec_Type_Bits_HIGH>() || type->is<IR::Sec_Type_Bits_LOW>()|| type->is<IR::Sec_Type_Bits_ISOLATED_1>() || type->is<IR::Sec_Type_Bits_ISOLATED_2>()) {
+            tt->type = type;
+        }
         setType(getOriginal(), tt);
         setType(type, tt);
     }
@@ -1439,7 +1579,7 @@ const IR::Node* TypeInference::postorder(IR::Type_Action* type) {
     return type;
 }
 
-const IR::Node* TypeInference::postorder(IR::Type_Base* type) {
+const IR::Node* TypeInference::postorder(IR::Type_Base* type) {  
     (void)setTypeType(type);
     return type;
 }
@@ -1640,7 +1780,10 @@ bool TypeInference::compare(const IR::Node* errorPosition,
         typeError("%1%: cannot be applied to action results", errorPosition);
         return false;
     }
-
+    bool ltype_base = ltype->is<IR::Type_Base>();
+    //typeError("%1%: is of type %2% with security label %3%", ltype_base, ltype->toString(), ltype->secLabel);
+    bool rtype_base = rtype->is<IR::Type_Base>();
+    //typeError("%1%: rty is of type %2% with security label %3%", rtype_base, rtype->toString(), rtype->secLabel);
     bool defined = false;
     if (TypeMap::equivalent(ltype, rtype) &&
         (!ltype->is<IR::Type_Void>() && !ltype->is<IR::Type_Varbits>())) {
@@ -1738,7 +1881,10 @@ bool TypeInference::compare(const IR::Node* errorPosition,
 const IR::Node* TypeInference::postorder(IR::Operation_Relation* expression) {
     if (done()) return expression;
     auto ltype = getType(expression->left);
+    //typeError("Sec of Left %1%, %2%", ltype->secLabel, expression->left);
     auto rtype = getType(expression->right);
+    //typeError("Sec of Right %1%, %2%", rtype->secLabel, expression->right);
+    expression->type->secLabel = ltype->secLabel > rtype->secLabel? ltype->secLabel: rtype->secLabel;
     if (ltype == nullptr || rtype == nullptr)
         return expression;
 
@@ -1785,7 +1931,7 @@ const IR::Node* TypeInference::postorder(IR::Operation_Relation* expression) {
         expression->left = c.left;
         expression->right = c.right;
     } else {
-        if (!ltype->is<IR::Type_Bits>() || !rtype->is<IR::Type_Bits>() || !(ltype == rtype)) {
+        if (!ltype->is<IR::Type_Bits>() || !rtype->is<IR::Type_Bits>() || !(ltype->toString() == rtype->toString())) {
             typeError("%1%: not defined on %2% and %3%",
                       expression, ltype->toString(), rtype->toString());
             return expression;
@@ -1843,15 +1989,21 @@ const IR::Node* TypeInference::postorder(IR::Concat* expression) {
  */
 const IR::Node* TypeInference::postorder(IR::Key* key) {
     // compute the type and store it in typeMap
+    int key_PC = Security_Label::LOW;
     auto keyTuple = new IR::Type_Tuple;
     for (auto ke : key->keyElements) {
         auto kt = typeMap->getType(ke->expression);
+        auto key_sec = kt->secLabel;
+        //typeError("Key of type %1%", key_sec);
+        key_PC = key_PC < key_sec? key_sec: key_PC;
         if (kt == nullptr) {
             LOG2("Bailing out for " << dbp(ke));
             return key;
         }
         keyTuple->components.push_back(kt);
     }
+    //typeError("PC of keys %1%", key_PC);
+    key->setPc(key_PC);
     LOG2("Setting key type to " << dbp(keyTuple));
     setType(key, keyTuple);
     // installing also for the original because we cannot tell which one will survive in the ir
@@ -2506,6 +2658,7 @@ const IR::Node* TypeInference::postorder(IR::Cmpl* expression) {
 }
 
 const IR::Node* TypeInference::postorder(IR::Cast* expression) {
+    //typeError("Cast typechecker");
     if (done()) return expression;
     const IR::Type* sourceType = getType(expression->expr);
     const IR::Type* castType = getTypeType(expression->destType);
@@ -2557,6 +2710,7 @@ const IR::Node* TypeInference::postorder(IR::Cast* expression) {
         }
     }
 
+
     if (!castType->is<IR::Type_Bits>() &&
         !castType->is<IR::Type_Boolean>() &&
         !castType->is<IR::Type_Newtype>() &&
@@ -2565,6 +2719,10 @@ const IR::Node* TypeInference::postorder(IR::Cast* expression) {
         !castType->is<IR::Type_SpecializedCanonical>()) {
         typeError("%1%: cast not supported", expression->destType);
         return expression;
+    }
+
+    if(castType->is<IR::Sec_Type_Bits_LOW>()) {
+        //typeError("%1%: cast not supported", expression->destType);
     }
 
     if (!canCastBetween(castType, sourceType)) {
@@ -2599,6 +2757,7 @@ const IR::Node* TypeInference::postorder(IR::Cast* expression) {
         setCompileTimeConstant(expression);
         setCompileTimeConstant(getOriginal<IR::Expression>());
     }
+    //typeError("Cast typechecker");
     return expression;
 }
 
@@ -3011,7 +3170,8 @@ TypeInference::actionCall(bool inActionList,
     // Then the call a(arg1, arg2) is also an
     // action, with signature _(arg3)
     LOG2("Processing action " << dbp(actionCall));
-
+    // meet of PC of param and PC of method
+    int args_pc = Security_Label::HIGH;
     if (findContext<IR::P4Parser>()) {
         typeError("%1%: Action calls are not allowed within parsers", actionCall);
         return actionCall;
@@ -3070,6 +3230,21 @@ TypeInference::actionCall(bool inActionList,
         if (paramType == nullptr || argType == nullptr)
             // type checking failed before
             return actionCall;
+        if(is_violating_isolation(paramType->secLabel, argType->secLabel)) {
+            typeError("Security label of function param Type: %1%  %2% is trying to violate isolation by passing arg type %3% arg %4%", paramType, paramType->secLabel, argType, argType->secLabel);
+            return actionCall;
+        }
+        if (args_pc > argType->pc)
+        {
+            args_pc = argType->pc;
+        }
+        if (paramType->secLabel > argType->secLabel && (
+                param->direction == IR::Direction::Out || param->direction == IR::Direction::InOut)) {
+            typeError("Security label of function param Type: %1% arg %2% is greater than the passed argument type %3% arg %4%", paramType, paramType->secLabel, argType, argType->secLabel);
+            return actionCall;
+        }
+        
+        
         constraints.addEqualityConstraint(actionCall, paramType, argType);
         if (param->direction == IR::Direction::None) {
             if (inActionList) {
@@ -3094,6 +3269,7 @@ TypeInference::actionCall(bool inActionList,
         if (!named)
             ++paramIt;
     }
+    actionCall->pc = args_pc<actionCall->pc? args_pc: actionCall->pc;
 
     // Check remaining parameters: they must be all non-directional
     bool error = false;
@@ -3180,8 +3356,11 @@ const IR::Node* TypeInference::postorder(IR::MethodCallExpression* expression) {
     if (done()) return expression;
     LOG2("Solving method call " << dbp(expression));
     auto methodType = getType(expression->method);
+    
     if (methodType == nullptr)
         return expression;
+    expression->setLabel(methodType->secLabel);
+    //IFC_LOG("security label of this method call");
     auto ft = methodType->to<IR::Type_MethodBase>();
     if (ft == nullptr) {
         typeError("%1% is not a method", expression);
@@ -3548,11 +3727,35 @@ const IR::Node* TypeInference::postorder(IR::AttribLocal* local) {
 const IR::Node* TypeInference::postorder(IR::IfStatement* conditional) {
     LOG3("TI Visiting " << dbp(getOriginal()));
     auto type = getType(conditional->condition);
+    auto conditional_seclabel = type->secLabel;
+    int ifTruePC = Security_Label::HIGH;
+    auto hasFalseBranch = conditional->ifFalse == NULL;
+    int ifFalsePC = Security_Label::HIGH;
+    if (!hasFalseBranch) {
+        ifFalsePC = conditional->ifFalse->pc;
+    } 
+    auto isBlock = conditional->ifTrue->is<IR::BlockStatement>();
+    if(isBlock){
+     for(auto item: conditional->ifTrue->as<IR::BlockStatement>().components){
+         //typeError("Item %1%", item->validContext());
+         ifTruePC = ifTruePC > item->pc? item->pc:ifTruePC;
+        }
+    }
+    else {
+        ifTruePC = conditional->ifTrue->as<IR::Statement>().pc;
+    }
+    conditional->ifTrue->setPc(ifTruePC);
+    //warn(ErrorType::WARN_UNUSED, "TC: If then else conditional pc:%1%, true: %2% , is block %3%", type, ifTruePC, isBlock);
     if (type == nullptr)
         return conditional;
     if (!type->is<IR::Type_Boolean>())
         typeError("Condition of %1% does not evaluate to a bool but %2%",
                   conditional, type->toString());
+    if (is_violating_isolation(conditional_seclabel, ifTruePC) || is_violating_isolation(conditional_seclabel, ifFalsePC))
+        typeError("Isolation Violation Implicit Leak: Security label of conditional %1% is > statements", conditional);
+    if ((conditional_seclabel > ifTruePC) || (conditional_seclabel > ifFalsePC))
+        typeError("Implicit Leak: Security label of conditional guard in %1% is more than its statement", conditional);
+    conditional->pc = ifTruePC > ifFalsePC? ifFalsePC: ifTruePC;
     return conditional;
 }
 
@@ -3652,6 +3855,8 @@ const IR::Node* TypeInference::postorder(IR::ReturnStatement* statement) {
 const IR::Node* TypeInference::postorder(IR::AssignmentStatement* assign) {
     LOG3("TI Visiting " << dbp(getOriginal()));
     auto ltype = getType(assign->left);
+    auto leftPC = ltype->secLabel;
+    auto rightPC = getType(assign->right)->secLabel;
     if (ltype == nullptr)
         return assign;
 
@@ -3662,12 +3867,17 @@ const IR::Node* TypeInference::postorder(IR::AssignmentStatement* assign) {
     }
 
     auto newInit = assignment(assign, ltype, assign->right);
+    
+    
     if (newInit != assign->right)
-        assign = new IR::AssignmentStatement(assign->srcInfo, assign->left, newInit);
+       assign = new IR::AssignmentStatement(assign->srcInfo, assign->left, newInit);
+    assign->setPc(newInit->type->secLabel);
+    //typeError("Assignment Typechecker: the new PC is %1%, from %2%, %3%", assign->pc, leftPC, rightPC);
     return assign;
 }
 
 const IR::Node* TypeInference::postorder(IR::ActionListElement* elem) {
+    //typeError("TC: Action list");
     if (done()) return elem;
     auto type = getType(elem->expression);
     if (type == nullptr)
@@ -3686,6 +3896,7 @@ const IR::Node* TypeInference::postorder(IR::SelectCase* sc) {
 }
 
 const IR::Node* TypeInference::postorder(IR::KeyElement* elem) {
+    //typeError("TC: Key element");
     auto ktype = getType(elem->expression);
     if (ktype == nullptr)
         return elem;

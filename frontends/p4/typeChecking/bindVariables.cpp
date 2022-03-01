@@ -102,6 +102,7 @@ const IR::Node* DoBindTypeVariables::postorder(IR::Declaration_Instance* decl) {
 
 const IR::Node* DoBindTypeVariables::postorder(IR::MethodCallExpression* expression) {
     auto type = typeMap->getType(getOriginal(), true);
+    //typeError("security label %1% %2%", type, type->secLabel);
     typeMap->setType(expression, type);
     if (typeMap->isCompileTimeConstant(getOriginal<IR::Expression>()))
         typeMap->setCompileTimeConstant(expression);

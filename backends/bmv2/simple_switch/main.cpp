@@ -13,11 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
+#include <fstream>
+#include <chrono>
 #include <stdio.h>
 #include <string>
 #include <iostream>
-
+using namespace std;
+using namespace std::chrono;
 #include "ir/ir.h"
 #include "control-plane/p4RuntimeSerializer.h"
 #include "frontends/common/applyOptionsPragmas.h"
@@ -38,21 +40,19 @@ limitations under the License.
 
 int main(int argc, char *const argv[]) {
     setup_gc_logging();
-
+    auto start = high_resolution_clock::now();
     AutoCompileContext autoBMV2Context(new BMV2::SimpleSwitchContext);
     auto& options = BMV2::SimpleSwitchContext::get().options();
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = BMV2_SIMPLESWITCH_VERSION_STRING;
-
     if (options.process(argc, argv) != nullptr) {
             if (options.loadIRFromJson == false)
                     options.setInputFile();
     }
     if (::errorCount() > 0)
         return 1;
-
     auto hook = options.getDebugHook();
-
+    // IFC_LOG("max pc is"+std::to_string(Log::Detail::maxPC));
     // BMV2 is required for compatibility with the previous compiler.
     options.preprocessor_options += " -D__TARGET_BMV2__";
 
@@ -72,6 +72,9 @@ int main(int argc, char *const argv[]) {
             P4::FrontEnd frontend;
             frontend.addDebugHook(hook);
             program = frontend.run(options, program);
+                            auto stop = high_resolution_clock::now();
+            auto duration = duration_cast<microseconds>(stop - start);
+            IFC_LOG("Time taken by typechecker is "+std::to_string(duration.count())+" microseconds\n");
         } catch (const std::exception &bug) {
             std::cerr << bug.what() << std::endl;
             return 1;
@@ -135,6 +138,5 @@ int main(int argc, char *const argv[]) {
             out->flush();
         }
     }
-
     return ::errorCount() > 0;
 }

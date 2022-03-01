@@ -73,6 +73,7 @@ static std::string      comment_block;
 "new"           { return NEW; }
 "operator"      { return OPERATOR; }
 "optional"      { return OPTIONAL; }
+"mutable"       { return MUTABLE; }
 "private"       { return PRIVATE; }
 "protected"     { return PROTECTED; }
 "public"        { return PUBLIC; }

@@ -173,7 +173,7 @@ inline std::ostream& operator<<(std::ostream& out, const P4::Token& t) {
 
 %token<Token>      UNEXPECTED_TOKEN END_PRAGMA
 %token<Token>      LE "<="
-%token<Token>      GE ">="
+%token<Token>      GE ">="      
 %token<Token>      SHL "<<"
 %token<Token>      AND "&&"
 %token<Token>      OR "||"
@@ -216,7 +216,7 @@ inline std::ostream& operator<<(std::ostream& out, const P4::Token& t) {
 %token<Token>      ABSTRACT ACTION ACTIONS APPLY BOOL BIT CONST CONTROL DEFAULT
                    ELSE ENTRIES ENUM ERROR EXIT EXTERN HEADER HEADER_UNION IF IN INOUT
                    INT KEY SELECT MATCH_KIND TYPE OUT PACKAGE PARSER PRAGMA RETURN STATE
-                   STRING STRUCT SWITCH TABLE TRANSITION TUPLE TYPEDEF VARBIT VALUESET VOID
+                   STRING STRUCT SWITCH TABLE TRANSITION TUPLE TYPEDEF VARBIT VALUESET VOID LOW HIGH ISOLATED_1 ISOLATED_2
 
 %token<cstring> IDENTIFIER TYPE_IDENTIFIER STRING_LITERAL
 %token<UnparsedConstant>  INTEGER
@@ -558,6 +558,10 @@ annotationToken
     | TABLE            { $$ = $1; }
     | THIS             { $$ = $1; }
     | TRANSITION       { $$ = $1; }
+    | LOW              { $$ = $1; }
+    | HIGH             { $$ = $1; }
+    | ISOLATED_1       { $$ = $1; }
+    | ISOLATED_2       { $$ = $1; }
     | TRUE             { $$ = $1; }
     | TUPLE            { $$ = $1; }
     | TYPEDEF          { $$ = $1; }
@@ -682,7 +686,7 @@ instantiation
 objInitializer
     : "{" { driver.structure->pushNamespace(@1, false); } objDeclarations "}"
                                { driver.structure->pop();
-                                 $$ = new IR::BlockStatement(@1+@4, *$3); }
+                                 $$ = new IR::BlockStatement(@1+@4, *$3);}
     ;
 
 objDeclarations
@@ -953,6 +957,10 @@ prefixedType
 
 typeName
     : prefixedType                     { $$ = new IR::Type_Name(@1, $1); }
+    | "<" prefixedType "," LOW ">"     { $$ = new IR::Type_Name(@1, $2); }
+    | "<" prefixedType "," HIGH ">"     { $$ = new IR::Type_Name(@1, $2); }
+    | "<" prefixedType "," ISOLATED_1 ">"     { $$ = new IR::Type_Name(@1, $2); }
+    | "<" prefixedType "," ISOLATED_2 ">"     { $$ = new IR::Type_Name(@1, $2); }
     ;
 
 tupleType
@@ -969,11 +977,83 @@ specializedType
     ;
 
 baseType
-    : BOOL   { $$ = IR::Type_Boolean::get(); }
+    :"<" BOOL "," LOW ">"   { auto result = IR::Sec_Type_Boolean_LOW::get();
+                              result->setSecLabel(Security_Label::LOW);
+                              $$ = result;  }
+    |"<" BOOL "," ISOLATED_1 ">"   { auto result = IR::Sec_Type_Boolean_ISOLATED_1::get();
+                              result->setSecLabel(Security_Label::ISOLATED_1);
+                              $$ = result;  }
+    |"<" BOOL "," ISOLATED_2 ">"   { auto result = IR::Sec_Type_Boolean_ISOLATED_2::get();
+                              result->setSecLabel(Security_Label::ISOLATED_2);
+                              $$ = result;  }
+    | "<" BIT "," LOW ">"    { auto result = IR::Sec_Type_Bits_LOW::get(@1, 2);
+                               result->setSecLabel(Security_Label::LOW);
+                               $$ = result; }
+    | "<" BIT "," ISOLATED_1 ">"    { auto result = IR::Sec_Type_Bits_ISOLATED_1::get(@1, 2);
+                               result->setSecLabel(Security_Label::ISOLATED_1);
+                               $$ = result; }
+    | "<" BIT "," ISOLATED_2 ">"    { auto result = IR::Sec_Type_Bits_ISOLATED_2::get(@1, 2);
+                               result->setSecLabel(Security_Label::ISOLATED_2);
+                               $$ = result; }
+    | "<" STRING "," LOW ">"  { auto result = IR::Sec_Type_String_LOW::get();
+                                result->setSecLabel(Security_Label::LOW);
+                                $$ = result; }
+    | "<" STRING "," ISOLATED_1 ">"  { auto result = IR::Sec_Type_String_ISOLATED_1::get();
+                                result->setSecLabel(Security_Label::ISOLATED_1);
+                                $$ = result; }
+    | "<" STRING "," ISOLATED_2 ">"  { auto result = IR::Sec_Type_String_ISOLATED_2::get();
+                                result->setSecLabel(Security_Label::ISOLATED_2);
+                                $$ = result; }
+    | "<" INT "," LOW ">"    { $$ = new IR::Type_InfInt(); }
+    | "<" INT "," ISOLATED_1 ">"    { $$ = new IR::Type_InfInt(); }
+    | "<" INT "," ISOLATED_2 ">"    { $$ = new IR::Type_InfInt(); }
+    | "<" BOOL "," HIGH ">"   { auto result = IR::Sec_Type_Boolean_HIGH::get();
+                                result->setSecLabel(Security_Label::HIGH);
+                                $$ = result; }
+    | "<" BIT "," HIGH ">"    { auto result = IR::Sec_Type_Bits_HIGH::get(@1, 2);
+                                result->setSecLabel(Security_Label::HIGH);
+                                $$ = result; }
+    | "<" STRING "," HIGH ">"  { auto result = IR::Sec_Type_String_HIGH::get();
+                                 result->setSecLabel(Security_Label::HIGH);
+                                 $$ = result; }
+    | "<" INT "," HIGH ">"    { $$ = new IR::Type_InfInt(); }
+    | "<" BIT l_angle INTEGER r_angle "," LOW ">"
+      { auto result = IR::Sec_Type_Bits_LOW::get(@1+@4, parseConstantChecked(@3, $4), false);
+       result->setSecLabel(Security_Label::LOW);
+       $$ = result; }
+    | "<" BIT l_angle INTEGER r_angle "," ISOLATED_1">"
+      { auto result = IR::Sec_Type_Bits_ISOLATED_1::get(@1+@4, parseConstantChecked(@3, $4), false);
+       result->setSecLabel(Security_Label::ISOLATED_1);
+       $$ = result; }
+    | "<" BIT l_angle INTEGER r_angle "," ISOLATED_2 ">"
+      { auto result = IR::Sec_Type_Bits_ISOLATED_2::get(@1+@4, parseConstantChecked(@3, $4), false);
+       result->setSecLabel(Security_Label::ISOLATED_2);
+       $$ = result; }
+    | "<" BIT l_angle INTEGER r_angle "," HIGH ">"
+      { auto result = IR::Sec_Type_Bits_HIGH::get(@1+@4, parseConstantChecked(@3, $4), false); 
+        result->setSecLabel(Security_Label::HIGH);
+        $$ = result;}
+    | "<" INT l_angle INTEGER r_angle "," LOW ">"
+      { auto result = IR::Sec_Type_Bits_LOW::get(@1+@4, parseConstantChecked(@3, $4), true); 
+        result->setSecLabel(Security_Label::LOW);
+        $$ = result;}
+    | "<" INT l_angle INTEGER r_angle "," ISOLATED_1 ">"
+      { auto result = IR::Sec_Type_Bits_ISOLATED_1::get(@1+@4, parseConstantChecked(@3, $4), true); 
+        result->setSecLabel(Security_Label::ISOLATED_1);
+        $$ = result;}
+    | "<" INT l_angle INTEGER r_angle "," ISOLATED_2 ">"
+      { auto result = IR::Sec_Type_Bits_ISOLATED_2::get(@1+@4, parseConstantChecked(@3, $4), true); 
+        result->setSecLabel(Security_Label::ISOLATED_2);
+        $$ = result;}
+    | "<" INT l_angle INTEGER r_angle "," HIGH ">"
+      { auto result = IR::Sec_Type_Bits_HIGH::get(@1+@4, parseConstantChecked(@3, $4), true);
+        result->setSecLabel(Security_Label::HIGH);
+        $$ = result; }
+    | BOOL   { $$ = IR::Type_Boolean::get(); }
+    | BIT   { $$ = IR::Type::Bits::get(@1, 1); }
+    | STRING  { $$ = IR::Type::String::get(); }
     | ERROR  { $$ = new IR::Type_Name(@1, new IR::Path(IR::ID(@1, "error"))); }
-    | BIT    { $$ = IR::Type::Bits::get(@1, 1); }
-    | STRING { $$ = IR::Type::String::get(); }
-    | INT    { $$ = new IR::Type_InfInt(); }
+    | INT    { $$ = new IR::Type_InfInt(); } 
     | BIT l_angle INTEGER r_angle
       { $$ = IR::Type::Bits::get(@1+@4, parseConstantChecked(@3, $3), false); }
     | INT l_angle INTEGER r_angle
@@ -988,6 +1068,7 @@ baseType
     | VARBIT l_angle "(" expression ")" r_angle
       { $$ = new IR::Type_Varbits(@1+@6, $4); }
     ;
+
 
 typeOrVoid
     : typeRef     { $$ = $1; }
@@ -1140,36 +1221,54 @@ assignmentOrMethodCallStatement
     : lvalue "(" argumentList ")" ";"
         { auto mc = new IR::MethodCallExpression(@1 + @4, $1,
                                                  new IR::Vector<IR::Type>(), $3);
-          $$ = new IR::MethodCallStatement(@1 + @4, mc); }
+          auto* result = new IR::MethodCallStatement(@1 + @4, mc);
+          result->setPc(result->validContext());
+          $$ = result; }
 
     | lvalue l_angle typeArgumentList r_angle "(" argumentList ")" ";"
         { auto mc = new IR::MethodCallExpression(@1 + @7,
                                                  $1, $3, $6);
-          $$ = new IR::MethodCallStatement(@1 + @7, mc); }
+          auto* result = new IR::MethodCallStatement(@1 + @7, mc);
+          result->setPc(result->validContext());
+          $$ = result; }
 
     | lvalue "=" expression ";"
-        { $$ = new IR::AssignmentStatement(@2, $1, $3); }
+        { auto* result = new IR::AssignmentStatement(@2, $1, $3);
+          result->setPc(result->validContext());
+          $$ = result; }
 
     ;
 
 emptyStatement
-    : ";"      { $$ = new IR::EmptyStatement(@1); }
+    : ";"      { auto* result = new IR::EmptyStatement(@1);
+                 result->setPc(result->validContext());
+                 $$ = result; }
     ;
 
 exitStatement
-    : EXIT ";" { $$ = new IR::ExitStatement(@1); }
+    : EXIT ";" { auto* result = new IR::ExitStatement(@1);
+                 result->setPc(result->validContext());
+                 $$ = result; }
     ;
 
 returnStatement
-    : RETURN ";"            { $$ = new IR::ReturnStatement(@1, nullptr); }
-    | RETURN expression ";" { $$ = new IR::ReturnStatement(@1, $2); }
+    : RETURN ";"            { auto* result = new IR::ReturnStatement(@1, nullptr);
+                              result->setPc(result->validContext());
+                              $$ = result; }
+    | RETURN expression ";" { auto* result = new IR::ReturnStatement(@1, $2);
+                              result->setPc(result->validContext());
+                              $$ = result; }
     ;
 
 conditionalStatement
     : IF "(" expression ")" statement                 %prec THEN
-        { $$ = new IR::IfStatement(@1, $3, $5, nullptr); }
+        { auto* result = new IR::IfStatement(@1, $3, $5, nullptr);
+          result->setPc(result->validContext());
+          $$ = result; }
     | IF "(" expression ")" statement ELSE statement  %prec THEN
-        { $$ = new IR::IfStatement(@1, $3, $5, $7); }
+        { auto* result = new IR::IfStatement(@1, $3, $5, $7);
+          result->setPc(result->validContext());
+          $$ = result; }
     ;
 
 // To support direct invocation of a control or parser without instantiation
@@ -1178,7 +1277,9 @@ directApplication
                                   auto method = new IR::Member(
                                       @1 + @3, new IR::TypeNameExpression($1), IR::ID(@3, "apply"));
                                   auto mce = new IR::MethodCallExpression(@1 + @6, method, $5);
-                                  $$ = new IR::MethodCallStatement(@1 + @6, mce); }
+                                  auto* result = new IR::MethodCallStatement(@1 + @6, mce);
+                                  result->setPc(result->validContext());
+                                  $$ = result; }
     ;
 
 statement
@@ -1195,7 +1296,9 @@ statement
 blockStatement
     : optAnnotations "{" { driver.structure->pushNamespace(@2, false); }
       statOrDeclList "}" { driver.structure->pop();
-                           $$ = new IR::BlockStatement(@1 + @5, $1, *$4); }
+                           auto* result = new IR::BlockStatement(@1 + @5, $1, *$4);
+                           result->setPc(result->validContext());
+                           $$ = result; }
     ;
 
 statOrDeclList
@@ -1205,7 +1308,9 @@ statOrDeclList
 
 switchStatement
     : SWITCH "(" expression ")" "{" switchCases "}" {
-            $$ = new IR::SwitchStatement(@1, $3, std::move(*$6)); }
+            auto* result = new IR::SwitchStatement(@1, $3, std::move(*$6));
+            result->setPc(result->validContext());
+            $$ = result; }
     ;
 
 switchCases
@@ -1272,6 +1377,18 @@ keyElement
     : expression ":" name optAnnotations ";"
                                          { auto expr = new IR::PathExpression(*$3);
                                            $$ = new IR::KeyElement(@1, $4, $1, expr); }
+    | "<" LOW ">" expression ":" name optAnnotations ";"
+                                         { auto expr = new IR::PathExpression(*$6);
+                                           $$ = new IR::KeyElement(@1, $7, $4, expr); }
+    | "<" ISOLATED_1 ">" expression ":" name optAnnotations ";"
+                                         { auto expr = new IR::PathExpression(*$6);
+                                           $$ = new IR::KeyElement(@1, $7, $4, expr); }
+    | "<" ISOLATED_2 ">" expression ":" name optAnnotations ";"
+                                         { auto expr = new IR::PathExpression(*$6);
+                                           $$ = new IR::KeyElement(@1, $7, $4, expr); }
+    | "<" HIGH ">" expression ":" name optAnnotations ";"
+                                         { auto expr = new IR::PathExpression(*$6);
+                                           $$ = new IR::KeyElement(@1, $7, $4, expr); }
     ;
 
 actionList
